@@ -5,6 +5,9 @@ import com.keemax.consts.MarketConst;
 import com.keemax.model.Order;
 import com.keemax.consts.ExchangeProperties;
 import org.apache.http.Consts;
+import org.apache.http.HttpException;
+import org.apache.http.ParseException;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -89,6 +92,7 @@ public abstract class Exchange {
         this.market = marketVal;
     }
 
+    //TODO: use java 7 and get rid of duplicate code in exception handling ya lazy bum
     Map executeRequest(HttpUriRequest request, String statusKey, Object equalsOnSuccess) throws IOException {
         CloseableHttpResponse resp = null;
 
@@ -108,26 +112,41 @@ public abstract class Exchange {
                 }
                 else {
                     System.err.println("bad request to " + getName() + ", response: " + respString);
-                    return null;
                 }
 
             } catch(IllegalStateException ise) {
-                System.err.println("response was not valid json");
-                return null;
-            } catch(Exception exception) {
+                //retry request in 5 seconds if server responded with non-json
                 wentThrough = false;
                 numRetries++;
                 if (numRetries > NUM_RETRIES) {
                     System.err.println("request won't go through after " + NUM_RETRIES + " retries");
                     break;
                 }
-                System.err.println("something went wrong with the req/resp, retrying");
-                exception.printStackTrace();
+                System.err.println("request failed, retrying");
+                ise.printStackTrace();
                 try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     System.err.println("too much coffee");
                 }
+            } catch(IOException ioe) {
+                //retry request if something else went wrong with request
+                wentThrough = false;
+                numRetries++;
+                if (numRetries > NUM_RETRIES) {
+                    System.err.println("request won't go through after " + NUM_RETRIES + " retries");
+                    break;
+                }
+                System.err.println("request failed, retrying");
+                ioe.printStackTrace();
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    System.err.println("too much coffee");
+                }
+            } catch(Exception e) {
+                System.err.println("something went wrong with the http request");
+                e.printStackTrace();
             } finally {
                 if (resp != null) {
                     resp.close();
