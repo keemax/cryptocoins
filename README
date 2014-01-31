@@ -1,1 +1,37 @@
 Java API wrappers for various altcoin exchanges
+
+(ONLY TESTED FOR DOGE_BTC MARKET!!!!!!!!!!!!!!!!!)
+Currently I have.....
+
+btc-e
+    get lowest sell order
+    get highest buy order
+    get balance usd
+    get balance btc
+
+bter
+    get lowest sell order
+    get highest buy order
+
+coins-e
+    get lowest sell order
+    get highest buy order
+    get balance btc
+    get balance doge
+    place order (buy or sell)
+    cancel order
+    get open orders
+
+cryptsy
+    get lowest sell order
+    get highest buy order
+    get balance btc
+    get balance doge
+    place order (buy or sell)
+    cancel order
+    get open orders
+
+crypto-trade
+    get lowest sell order
+    get highest buy order
+    get balance btc

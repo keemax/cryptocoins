@@ -14,15 +14,13 @@ import java.io.IOException;
  */
 public class CryptoTradeTest {
 
-    public void xtestCryptoTrade() {
+    public void testCryptoTrade() {
 
-        CryptoTrade cryptoTrade = new CryptoTrade(MarketConst.DOGE_BTC);
+        CryptoTrade cryptoTrade = new CryptoTrade(MarketConst.LTC_BTC);
 
         try {
-            System.out.println("balance in btc on bter");
             System.out.println(cryptoTrade.getBalanceBTC());
-
-            System.out.println("******* LTC_USD ON BTER ********");
+            System.out.println(cryptoTrade.getB);
 
             System.out.println("lowest sell");
             Order lowestSell = cryptoTrade.getLowestSell();

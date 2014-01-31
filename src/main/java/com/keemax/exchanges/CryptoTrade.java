@@ -28,6 +28,7 @@ public class CryptoTrade extends Exchange {
         mkts.put(MarketConst.LTC_BTC, "ltc_btc");
         mkts.put(MarketConst.BTC_USD, "btc_usd");
         mkts.put(MarketConst.LTC_USD, "ltc_usd");
+        mkts.put(MarketConst.DOGE_BTC, "doge_usd");
 
         setMarket(mkt);
     }
@@ -82,8 +83,9 @@ public class CryptoTrade extends Exchange {
 
     //TODO
     @Override
-    public double getBalanceBtc() {
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+    public double getBalanceBtc() throws IOException {
+        Map getInfoResp = authenticatedHTTPRequest("getinfo", null);
+        return Double.parseDouble((String)((Map) getInfoResp.get("funds")).get("btc"));
     }
 
     //TODO
@@ -95,12 +97,6 @@ public class CryptoTrade extends Exchange {
     @Override
     public String getName() {
         return "crypto-trade";
-    }
-
-
-    public Double getBalanceBTC() throws IOException {
-        Map getInfoResp = authenticatedHTTPRequest("getinfo", null);
-        return Double.parseDouble((String)((Map) getInfoResp.get("funds")).get("btc"));
     }
 
     @SuppressWarnings("unchecked")

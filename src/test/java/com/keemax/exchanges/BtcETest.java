@@ -17,9 +17,10 @@ public class BtcETest {
     public void testGetFunds() throws IOException {
         BtcE btcE = new BtcE(MarketConst.LTC_BTC);
         try {
-            System.out.println("trying authenticated req");
+            System.out.println("balance usd");
             System.out.println(btcE.getBalanceUSD());
-            System.out.println("******* LTC_USD ON BTC-E ********");
+            System.out.println("balance btc");
+            System.out.println(btcE.getBalanceBtc());
 
             System.out.println("lowest sell");
             Order lowestSell = btcE.getLowestSell();

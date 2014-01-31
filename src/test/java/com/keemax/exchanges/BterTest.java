@@ -14,14 +14,12 @@ import java.io.IOException;
  */
 public class BterTest {
 
-    public void xtestGetMarketInfo() {
+    public void testGetMarketInfo() {
 
         Bter bter = new Bter(MarketConst.DOGE_BTC);
 //        bter.setMarket();
 
         try {
-
-            System.out.println("******* LTC_USD ON BTER ********");
 
             System.out.println("lowest sell");
             Order lowestSell = bter.getLowestSell();
@@ -37,10 +35,13 @@ public class BterTest {
 
     }
 
-    public void testGetBalances() throws IOException {
+    public void xtestGetBalances() throws IOException {
         Bter bter = new Bter(MarketConst.DOGE_BTC);
-
-        System.out.println("doge: " + bter.getBalanceDoge());
-        System.out.println("btc: " + bter.getBalanceBtc());
+        try {
+            System.out.println("doge: " + bter.getBalanceDoge());
+            System.out.println("btc: " + bter.getBalanceBtc());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

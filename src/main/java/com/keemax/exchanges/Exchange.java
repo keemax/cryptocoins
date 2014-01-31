@@ -28,7 +28,7 @@ public abstract class Exchange {
     //minimum quantity for trade to be considered
     //I added this because trades with very small volume are likely to disappear before the bot can place an order
     //also even if the order is placed in time, trades will occur at the best possible rate
-    final static double MIN_TRADE_QUANTITY = 0;
+    final static double MIN_TRADE_QUANTITY = 2000;
     //retries for http requests
     final static int NUM_RETRIES = 3;
 
@@ -117,8 +117,8 @@ public abstract class Exchange {
             } catch(Exception exception) {
                 wentThrough = false;
                 numRetries++;
-                if (numRetries > 3) {
-                    System.err.println("request won't go through after 3 retries");
+                if (numRetries > NUM_RETRIES) {
+                    System.err.println("request won't go through after " + NUM_RETRIES + " retries");
                     break;
                 }
                 System.err.println("something went wrong with the req/resp, retrying");

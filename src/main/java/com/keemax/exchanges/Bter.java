@@ -107,13 +107,13 @@ public class Bter extends Exchange {
     @SuppressWarnings("unchecked")
     private List<Order> getAllSellOrders() throws IOException {
         Map depth = getDepth();
-        return mapOrders((List<List<Double>>) depth.get("asks"));
+        return mapOrders((List<List<Object>>) depth.get("asks"));
 
     }
     @SuppressWarnings("unchecked")
     private List<Order> getAllBuyOrders() throws IOException {
         Map depth = getDepth();
-        return mapOrders((List<List<Double>>) depth.get("bids"));
+        return mapOrders((List<List<Object>>) depth.get("bids"));
 
     }
 
@@ -121,13 +121,13 @@ public class Bter extends Exchange {
         return httpRequest("depth");
     }
 
-    private List<Order> mapOrders(List<List<Double>> rawOrders) {
+    private List<Order> mapOrders(List<List<Object>> rawOrders) {
         List<Order> orders = new ArrayList<Order>();
-        for (List<Double> rawOrder: rawOrders) {
+        for (List<Object> rawOrder: rawOrders) {
             try {
                 Order order = new Order();
-                order.setRate(rawOrder.get(0));
-                order.setQuantity(rawOrder.get(1));
+                order.setRate(Double.parseDouble((String) rawOrder.get(0)));
+                order.setQuantity((Double) rawOrder.get(1));
                 order.setTotal(order.getRate() * order.getQuantity());
                 orders.add(order);
             } catch (ClassCastException cce) {

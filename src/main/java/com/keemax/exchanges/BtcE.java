@@ -80,8 +80,9 @@ public class BtcE extends Exchange {
 
     //TODO
     @Override
-    public double getBalanceBtc() {
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+    public double getBalanceBtc() throws IOException {
+        Map getInfoResp = authenticatedHTTPRequest("getInfo", null);
+        return (Double)((Map) getInfoResp.get("funds")).get("btc");
     }
 
     //TODO
