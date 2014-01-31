@@ -1,6 +1,9 @@
 Java API wrappers for various altcoin exchanges
-
 (ONLY TESTED FOR DOGE_BTC MARKET!!!!!!!!!!!!!!!!!)
+
+Before you use this, make sure you get API keys on your desired exchange(s) and add them to src/main/resources/config.properties.
+Also, you're probably going to want to use maven to manage this.
+
 Currently I have.....
 
 btc-e
