@@ -19,8 +19,7 @@ public class CryptoTradeTest {
         CryptoTrade cryptoTrade = new CryptoTrade(MarketConst.LTC_BTC);
 
         try {
-            System.out.println(cryptoTrade.getBalanceBTC());
-            System.out.println(cryptoTrade.getB);
+            System.out.println(cryptoTrade.getBalanceBtc());
 
             System.out.println("lowest sell");
             Order lowestSell = cryptoTrade.getLowestSell();
