@@ -6,6 +6,8 @@ import com.keemax.model.Order;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /**
  * Created with IntelliJ IDEA.
@@ -19,29 +21,33 @@ public class AllTest {
     public void testPrintBalances() throws IOException {
         Cryptsy cryptsy = new Cryptsy(MarketConst.DOGE_BTC);
         CoinsE coinsE = new CoinsE(MarketConst.DOGE_BTC);
+        Bter bter = new Bter(MarketConst.DOGE_BTC);
+        List<Exchange> exchanges = new ArrayList<Exchange>();
+        exchanges.add(cryptsy);
+        exchanges.add(coinsE);
+        exchanges.add(bter);
 
+        System.out.println("****** balances *******");
+        System.out.println("\nbtc");
+        double totalBtc = 0;
+        for (Exchange exchange : exchanges) {
+            double btc = exchange.getBalanceBtc();
+            System.out.println("\t" + exchange.getName() + ": " + btc);
+            totalBtc += btc;
+        }
+        System.out.println("\tTOTAL: " + totalBtc);
 
-//        while(true) {
-        double cryptsyBtc = cryptsy.getBalanceBtc();
-        double cryptsyDoge = cryptsy.getBalanceDoge();
-        double coinseBtc = coinsE.getBalanceBtc();
-        double coinseDoge = coinsE.getBalanceDoge();
-        System.out.println("\n\n\n\n");
-        System.out.println("*************************");
-        System.out.println("*   STARTING BALANCES   *");
-        System.out.println("*************************");
-        System.out.println("\n** BTC **");
-        System.out.println("cryptsy: " + cryptsyBtc);
-        System.out.println("coins-e: " + coinseBtc);
-        System.out.println("  TOTAL: " + (cryptsyBtc + coinseBtc));
-        System.out.println("\n** DOGE **");
-        System.out.println("cryptsy: " + cryptsyDoge);
-        System.out.println("coins-e: " + coinseDoge);
-        System.out.println("  TOTAL: " + (cryptsyDoge + coinseDoge));
-        System.out.println("\n*************************\n\n\n");
+        System.out.println("\ndoge");
+        double totalDoge = 0;
+        for (Exchange exchange : exchanges) {
+            double doge = exchange.getBalanceDoge();
+            System.out.println("\t" + exchange.getName() + ": " + doge);
+            totalDoge += doge;
+        }
+        System.out.println("\tTOTAL: " + totalDoge + "\n");
     }
 
-    public void testGetArbitrage() throws IOException {
+    public void xtestGetArbitrage() throws IOException {
         List<Exchange> exchanges = new ArrayList<Exchange>();
         List<Order> sells = new ArrayList<Order>();
         List<Order> buys = new ArrayList<Order>();
@@ -69,5 +75,27 @@ public class AllTest {
 //                System.out.println(sell.getRate() - buy.getRate());
 //            }
 //        }
+    }
+
+    public void xtestPlaceAsyncOrders() throws ExecutionException, InterruptedException {
+        Bter bter = new Bter(MarketConst.DOGE_BTC);
+        CoinsE coinsE = new CoinsE(MarketConst.DOGE_BTC);
+        Cryptsy cryptsy = new Cryptsy(MarketConst.DOGE_BTC);
+
+        Order testOrder = new Order();
+        testOrder.setRate(0.00000002);
+        testOrder.setQuantity(500000);
+
+        long start = System.currentTimeMillis();
+        Future<String> orderNum1 = bter.placeBuyOrderAsync(testOrder);
+        Future<String> orderNum2 = coinsE.placeBuyOrderAsync(testOrder);
+        Future<String> orderNum3 = cryptsy.placeBuyOrderAsync(testOrder);
+        System.out.println("time to place orders " + (System.currentTimeMillis() - start));
+
+        System.out.println("bter order num: " + orderNum1.get());
+        System.out.println("coins-e order num: " + orderNum2.get());
+        System.out.println("cryptsy order num: " + orderNum3.get());
+
+
     }
 }

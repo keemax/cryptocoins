@@ -96,6 +96,16 @@ public class BtcE extends Exchange {
         return "btc-e";
     }
 
+    @Override
+    void updateWalletCache() {
+        //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    @Override
+    void updateDepthCache() {
+        //To change body of implemented methods use File | Settings | File Templates.
+    }
+
 
     public Double getBalanceUSD() throws IOException {
         Map getInfoResp = authenticatedHTTPRequest("getInfo", null);
@@ -103,13 +113,13 @@ public class BtcE extends Exchange {
     }
 
     @SuppressWarnings("unchecked")
-    private List<Order> getAllSellOrders() throws IOException {
+    public List<Order> getAllSellOrders() throws IOException {
         Map depth = getDepth();
         return mapOrders((List<List<Double>>) depth.get("asks"));
 
     }
     @SuppressWarnings("unchecked")
-    private List<Order> getAllBuyOrders() throws IOException {
+    public List<Order> getAllBuyOrders() throws IOException {
         Map depth = getDepth();
         return mapOrders((List<List<Double>>) depth.get("bids"));
 

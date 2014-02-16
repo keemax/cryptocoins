@@ -97,7 +97,9 @@ public class Cryptsy extends Exchange {
 
     @Override
     public double getBalanceBtc() throws IOException {
-        checkUpdateWallets();
+        if (walletsCache == null) {
+            forceUpdateWallets();
+        }
         String balanceString = (String) walletsCache.get("BTC");
         if (balanceString == null) {
             return 0;
@@ -107,7 +109,9 @@ public class Cryptsy extends Exchange {
 
     @Override
     public double getBalanceDoge() throws IOException {
-        checkUpdateWallets();
+        if (walletsCache == null) {
+            forceUpdateWallets();
+        }
         String balanceString = (String) walletsCache.get("DOGE");
         if (balanceString == null) {
             return 0;
@@ -120,11 +124,26 @@ public class Cryptsy extends Exchange {
         return "cryptsy";
     }
 
-    //update wallet cache
-    public void checkUpdateWallets() throws IOException {
-        if (!walletsIsFresh()) {
+    @Override
+    void updateWalletCache() {
+        try {
             Map resp = authenticatedHTTPRequest("getinfo", null);
-            updateWallets((Map) ((Map) resp.get("return")).get("balances_available"));
+            walletsCache = (Map) ((Map) resp.get("return")).get("balances_available");
+        } catch (IOException ioe) {
+            System.err.println("unable to update wallets on " + getName());
+            ioe.printStackTrace();
+        }
+    }
+
+    @Override
+    void updateDepthCache() {
+        try {
+            List<NameValuePair> params = new ArrayList<NameValuePair>();
+            params.add(new BasicNameValuePair("marketid", market));
+            depthCache = (Map)authenticatedHTTPRequest("marketorders", params).get("return");
+        } catch (IOException ioe) {
+            System.err.println("unable to update depth on " + getName());
+            ioe.printStackTrace();
         }
     }
 
@@ -142,25 +161,21 @@ public class Cryptsy extends Exchange {
     }
 
     @SuppressWarnings("unchecked")
-    private List<Order> getAllSellOrders() throws IOException {
-        checkUpdateDepth();
+    @Override
+    public List<Order> getAllSellOrders() throws IOException {
+        if (depthCache == null) {
+            forceUpdateDepth();
+        }
         return mapOrdersForDepth((List) depthCache.get("sellorders"), true);
 
     }
     @SuppressWarnings("unchecked")
-    private List<Order> getAllBuyOrders() throws IOException {
-        checkUpdateDepth();
-        return mapOrdersForDepth((List) depthCache.get("buyorders"), false);
-
-    }
-
-    //update market depth cache
-    private void checkUpdateDepth() throws IOException {
-        if (!depthIsFresh()) {
-            List<NameValuePair> params = new ArrayList<NameValuePair>();
-            params.add(new BasicNameValuePair("marketid", market));
-            updateDepth((Map)authenticatedHTTPRequest("marketorders", params).get("return"));
+    @Override
+    public List<Order> getAllBuyOrders() throws IOException {
+        if (depthCache == null) {
+            forceUpdateDepth();
         }
+        return mapOrdersForDepth((List) depthCache.get("buyorders"), false);
 
     }
 
@@ -182,7 +197,7 @@ public class Cryptsy extends Exchange {
                 orders.add(thisOrder);
             }
         }
-        cleanOrders(orders);
+//        cleanOrders(orders);
         return orders;
     }
 
@@ -197,25 +212,6 @@ public class Cryptsy extends Exchange {
             orders.add(thisOrder);
         }
         return orders;
-    }
-
-    //tries to get rid of outliers because sometimes old orders stick around but can't be bought/sold
-    private void cleanOrders(List<Order> orders) {
-        boolean clean = false;
-        while (!clean) {
-            clean = true;
-            for (int i = 0; i < 5 && i < orders.size() - 1; i++) {
-//                System.out.println("checking rate " + orders.get(i + 1).getRate() + " vs rate " + orders.get(i).getRate());
-                double rateSpread = Math.abs(orders.get(i + 1).getRate() - orders.get(i).getRate());
-                double percentChange = rateSpread / orders.get(i + 1).getRate();
-                if (percentChange > 0.05) {
-//                    System.out.println("removing order: " + orders.get(i).toString() + " because change is " + percentChange * 100 + "%");
-                    orders.remove(i);
-                    clean = false;
-                    break;
-                }
-            }
-        }
     }
 
     private Map authenticatedHTTPRequest(String method, List<NameValuePair> params) throws IOException {

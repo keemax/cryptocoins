@@ -99,14 +99,26 @@ public class CryptoTrade extends Exchange {
         return "crypto-trade";
     }
 
+    @Override
+    void updateWalletCache() {
+        //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    @Override
+    void updateDepthCache() {
+        //To change body of implemented methods use File | Settings | File Templates.
+    }
+
     @SuppressWarnings("unchecked")
-    private List<Order> getAllSellOrders() throws IOException {
+    @Override
+    public List<Order> getAllSellOrders() throws IOException {
         Map depth = getDepth();
         return mapOrders((List<List<String>>) depth.get("asks"));
 
     }
     @SuppressWarnings("unchecked")
-    private List<Order> getAllBuyOrders() throws IOException {
+    @Override
+    public List<Order> getAllBuyOrders() throws IOException {
         Map depth = getDepth();
         return mapOrders((List<List<String>>) depth.get("bids"));
 

@@ -4,7 +4,7 @@ Java API wrappers for various altcoin exchanges
 Before you use this, make sure you get API keys on your desired exchange(s) and add them to src/main/resources/config.properties.
 Also, you're probably going to want to use maven to manage this.
 
-Currently I have.....
+Currently I have successfully tested.....
 
 btc-e
     get lowest sell order
@@ -15,6 +15,10 @@ btc-e
 bter
     get lowest sell order
     get highest buy order
+    get balance btc
+    get balance doge
+    place order (buy or sell)
+    get open orders
 
 coins-e
     get lowest sell order
@@ -38,3 +42,7 @@ crypto-trade
     get lowest sell order
     get highest buy order
     get balance btc
+
+
+
+to the moon!

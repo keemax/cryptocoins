@@ -12,8 +12,10 @@ import org.apache.http.message.BasicNameValuePair;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Created with IntelliJ IDEA.
@@ -37,7 +39,7 @@ public class Bter extends Exchange {
     @Override
     public Order getLowestSell() throws IOException {
         List<Order> allSellOrders = getAllSellOrders();
-        return allSellOrders.get(allSellOrders.size() - 1);
+        return allSellOrders.get(0);
     }
 
     @Override
@@ -46,28 +48,32 @@ public class Bter extends Exchange {
         return allBuyOrders.get(0);
     }
 
-    //TODO
     @Override
     public String placeBuyOrder(Order order) throws IOException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return placeOrder(order, "BUY");
     }
 
-    //TODO
     @Override
     public String placeSellOrder(Order order) throws IOException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return placeOrder(order, "SELL");
     }
 
-    //TODO
     @Override
     public boolean cancelOrder(String orderId) throws IOException {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        List<NameValuePair> params = new ArrayList<NameValuePair>();
+        params.add(new BasicNameValuePair("order_id", orderId));
+
+        Map resp = authenticatedHTTPRequest("cancelorder", params);
+
+        return resp.get("msg").equals("Success");
     }
 
-    //TODO
+    @SuppressWarnings("unchecked")
     @Override
     public List<Order> getOpenOrders() throws IOException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        Map resp = authenticatedHTTPRequest("orderlist", null);
+
+        return mapOrdersForListOrders((List<Map>) resp.get("orders"));
     }
 
     @Override
@@ -82,14 +88,26 @@ public class Bter extends Exchange {
 
     @Override
     public double getBalanceBtc() throws IOException {
-        checkUpdateWallets();
-        return Double.parseDouble((String) walletsCache.get("BTC"));
+        if (walletsCache == null) {
+            forceUpdateWallets();
+        }
+        String stringValue = (String) walletsCache.get("BTC");
+        if (stringValue == null) {
+            return 0;
+        }
+        return Double.parseDouble(stringValue);
     }
 
     @Override
     public double getBalanceDoge() throws IOException {
-        checkUpdateWallets();
-        return Double.parseDouble((String) walletsCache.get("DOGE"));
+        if (walletsCache == null) {
+            forceUpdateWallets();
+        }
+        String stringValue = (String) walletsCache.get("DOGE");
+        if (stringValue == null) {
+            return 0;
+        }
+        return Double.parseDouble(stringValue);
     }
 
     @Override
@@ -97,31 +115,63 @@ public class Bter extends Exchange {
         return "bter";
     }
 
-    private void checkUpdateWallets() throws IOException {
-        if (!walletsIsFresh()) {
+    @Override
+    void updateWalletCache() {
+        try {
             Map resp = authenticatedHTTPRequest("getfunds", null);
-            updateWallets((Map) resp.get("available_funds"));
+            walletsCache = (Map) resp.get("available_funds");
+        } catch (IOException ioe) {
+            System.err.println("cannot update wallet for " + getName());
+            ioe.printStackTrace();
         }
     }
 
+    @Override
+    void updateDepthCache() {
+        try {
+            depthCache = httpRequest("depth");
+        } catch (IOException ioe) {
+            System.err.println("can't update depth on " + getName());
+            ioe.printStackTrace();
+        }
+    }
+
+    private String placeOrder(Order order, String orderType) throws IOException {
+        List<NameValuePair> params = new ArrayList<NameValuePair>();
+        params.add(new BasicNameValuePair("pair", market));
+        params.add(new BasicNameValuePair("type", orderType));
+        params.add(new BasicNameValuePair("rate", Double.toString(order.getRate())));
+        params.add(new BasicNameValuePair("amount", Double.toString(order.getQuantity())));
+
+        Map resp = authenticatedHTTPRequest("placeorder", params);
+        String orderNumString = resp.get("order_id").toString();
+        return orderNumString.substring(0, orderNumString.length() - 2);
+    }
+
+
+
     @SuppressWarnings("unchecked")
-    private List<Order> getAllSellOrders() throws IOException {
-        Map depth = getDepth();
-        return mapOrders((List<List<Object>>) depth.get("asks"));
+    @Override
+    public List<Order> getAllSellOrders() throws IOException {
+        if (depthCache == null) {
+            forceUpdateDepth();
+        }
+        List<Order> allSellOrders = mapOrdersForDepth((List<List<Object>>) depthCache.get("asks"));
+        Collections.reverse(allSellOrders);
+        return allSellOrders;
 
     }
     @SuppressWarnings("unchecked")
-    private List<Order> getAllBuyOrders() throws IOException {
-        Map depth = getDepth();
-        return mapOrders((List<List<Object>>) depth.get("bids"));
+    @Override
+    public List<Order> getAllBuyOrders() throws IOException {
+        if (depthCache == null) {
+            forceUpdateDepth();
+        }
+        return mapOrdersForDepth((List<List<Object>>) depthCache.get("bids"));
 
     }
 
-    private Map getDepth() throws IOException {
-        return httpRequest("depth");
-    }
-
-    private List<Order> mapOrders(List<List<Object>> rawOrders) {
+    private List<Order> mapOrdersForDepth(List<List<Object>> rawOrders) {
         List<Order> orders = new ArrayList<Order>();
         for (List<Object> rawOrder: rawOrders) {
             try {
@@ -129,10 +179,32 @@ public class Bter extends Exchange {
                 order.setRate(Double.parseDouble((String) rawOrder.get(0)));
                 order.setQuantity((Double) rawOrder.get(1));
                 order.setTotal(order.getRate() * order.getQuantity());
-                orders.add(order);
+                if (order.getQuantity() > MIN_TRADE_QUANTITY) {
+                    orders.add(order);
+                }
             } catch (ClassCastException cce) {
                 System.err.println("class cast exception");
             }
+        }
+//        cleanOrders(orders);
+        return orders;
+    }
+
+    //maps json response for order list to order objects
+    private List<Order> mapOrdersForListOrders(List<Map> rawOrders) {
+        List<Order> orders = new ArrayList<Order>();
+        for (Map rawOrder : rawOrders) {
+            Order thisOrder = new Order();
+            if (rawOrder.get("sell_type").equals("BTC")) {
+                thisOrder.setQuantity(Double.parseDouble((String) rawOrder.get("buy_amount")));
+                thisOrder.setTotal(Double.parseDouble((String) rawOrder.get("sell_amount")));
+            }
+            else {
+                thisOrder.setQuantity(Double.parseDouble((String) rawOrder.get("sell_amount")));
+                thisOrder.setTotal(Double.parseDouble((String) rawOrder.get("buy_amount")));
+            }
+            thisOrder.setRate(thisOrder.getTotal() / thisOrder.getQuantity());
+            orders.add(thisOrder);
         }
         return orders;
     }
@@ -154,7 +226,15 @@ public class Bter extends Exchange {
         UrlEncodedFormEntity requestBody = new UrlEncodedFormEntity(params, Consts.UTF_8);
         post.setEntity(requestBody);
 
-        return executeRequest(post, "result", "true");
+        Object checkAgainst;
+        //sometimes value of result is a string, sometimes it's a boolean -_-
+        if (method.equals("orderlist") || method.equals("placeorder")) {
+            checkAgainst = true;
+        }
+        else {
+            checkAgainst = "true";
+        }
+        return executeRequest(post, "result", checkAgainst);
     }
 
     private Map httpRequest(String method) throws IOException {

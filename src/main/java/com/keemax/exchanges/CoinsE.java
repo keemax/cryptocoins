@@ -89,7 +89,9 @@ public class CoinsE extends Exchange {
 
     @Override
     public double getBalanceBtc() throws IOException {
-        checkUpdateWallets();
+        if (walletsCache == null) {
+            forceUpdateWallets();
+        }
         Map balanceBtc = (Map) walletsCache.get("BTC");
         if (balanceBtc == null) {
             return 0;
@@ -99,7 +101,9 @@ public class CoinsE extends Exchange {
 
     @Override
     public double getBalanceDoge() throws IOException {
-        checkUpdateWallets();
+        if (walletsCache == null) {
+            forceUpdateWallets();
+        }
         Map balanceDoge = (Map) walletsCache.get("DOGE");
         if (balanceDoge == null) {
             return 0;
@@ -110,6 +114,28 @@ public class CoinsE extends Exchange {
     @Override
     public String getName() {
         return "coins-e";
+    }
+
+    @Override
+    void updateWalletCache() {
+        try {
+            Map resp = authenticatedHTTPRequest("/wallet/all/", "getwallets", null);
+            walletsCache = (Map) resp.get("wallets");
+        } catch (IOException ioe) {
+            System.err.println("unable to update wallets on " + getName());
+            ioe.printStackTrace();
+        }
+    }
+
+    //TODO: check for private method
+    @Override
+    void updateDepthCache() {
+        try {
+            depthCache = (Map) httpRequest("depth").get("marketdepth");
+        } catch (IOException ioe) {
+            System.err.println("unable to update depth on " + getName());
+            ioe.printStackTrace();
+        }
     }
 
     private String placeOrder(Order order, String orderType) throws IOException {
@@ -125,33 +151,22 @@ public class CoinsE extends Exchange {
         return (String) orderDetails.get("id");
     }
 
-    //update wallet cache
-    public void checkUpdateWallets() throws IOException {
-        if (!walletsIsFresh()) {
-            Map resp = authenticatedHTTPRequest("/wallet/all/", "getwallets", null);
-            updateWallets((Map) resp.get("wallets"));
-        }
-
-    }
     @SuppressWarnings("unchecked")
-    private List<Order> getAllSellOrders() throws IOException {
-        checkUpdateDepth();
+    @Override
+    public List<Order> getAllSellOrders() throws IOException {
+        if (depthCache == null) {
+            forceUpdateDepth();
+        }
         return mapOrdersForDepth((List<Map>) depthCache.get("asks"));
-
     }
+
     @SuppressWarnings("unchecked")
-    private List<Order> getAllBuyOrders() throws IOException {
-        checkUpdateDepth();
-        return mapOrdersForDepth((List<Map>) depthCache.get("bids"));
-
-    }
-
-    //TODO: check for private method
-    //update market depth cache
-    private void checkUpdateDepth() throws IOException {
-        if (!depthIsFresh()) {
-            updateDepth((Map)httpRequest("depth").get("marketdepth"));
+    @Override
+    public List<Order> getAllBuyOrders() throws IOException {
+        if (depthCache == null) {
+            forceUpdateDepth();
         }
+        return mapOrdersForDepth((List<Map>) depthCache.get("bids"));
     }
 
     //maps json orders from depth response to order objects
@@ -168,7 +183,7 @@ public class CoinsE extends Exchange {
                     orders.add(thisOrder);
             }
         }
-        cleanOrders(orders);
+//        cleanOrders(orders);
         return orders;
     }
 
@@ -183,26 +198,6 @@ public class CoinsE extends Exchange {
             orders.add(thisOrder);
         }
         return orders;
-    }
-
-    //sometimes there's old/glitchy orders with ridiculous rates that you can't trade for
-    //this tries to weed them out
-    private void cleanOrders(List<Order> orders) {
-        boolean clean = false;
-        while (!clean) {
-            clean = true;
-            for (int i = 0; i < 5 && i < orders.size() - 1; i++) {
-//                System.out.println("checking rate " + orders.get(i + 1).getRate() + " vs rate " + orders.get(i).getRate());
-                double rateSpread = Math.abs(orders.get(i + 1).getRate() - orders.get(i).getRate());
-                double percentChange = rateSpread / orders.get(i + 1).getRate();
-                if (percentChange > 0.05) {
-//                    System.out.println("removing order: " + orders.get(i).toString() + " because change is " + percentChange * 100 + "%");
-                    orders.remove(i);
-                    clean = false;
-                    break;
-                }
-            }
-        }
     }
 
     private Map authenticatedHTTPRequest(String path, String method, List<NameValuePair> params) throws IOException {

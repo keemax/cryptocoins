@@ -1,13 +1,12 @@
 package com.keemax.exchanges;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.keemax.consts.MarketConst;
 import com.keemax.model.Order;
 import com.keemax.consts.ExchangeProperties;
 import org.apache.http.Consts;
-import org.apache.http.HttpException;
-import org.apache.http.ParseException;
-import org.apache.http.client.ClientProtocolException;
+import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -18,6 +17,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.*;
 
 /**
  * Created with IntelliJ IDEA.
@@ -31,9 +31,9 @@ public abstract class Exchange {
     //minimum quantity for trade to be considered
     //I added this because trades with very small volume are likely to disappear before the bot can place an order
     //also even if the order is placed in time, trades will occur at the best possible rate
-    final static double MIN_TRADE_QUANTITY = 2000;
+    final static double MIN_TRADE_QUANTITY = 10000;
     //retries for http requests
-    final static int NUM_RETRIES = 3;
+    final static int NUM_RETRIES = 8;
 
     CloseableHttpClient client;
     static long nonce;
@@ -47,6 +47,8 @@ public abstract class Exchange {
 
     Map walletsCache;
     Long walletsUpdated;
+
+    private final static ExecutorService orderPlacerPool = Executors.newFixedThreadPool(2);
 
     public Exchange() {
         client = HttpClients.createDefault();
@@ -62,7 +64,11 @@ public abstract class Exchange {
 
     public abstract Order getLowestSell() throws IOException;
 
+    public abstract List<Order> getAllSellOrders() throws IOException;
+
     public abstract Order getHighestBuy() throws IOException;
+
+    public abstract List<Order> getAllBuyOrders() throws IOException;
 
     public abstract String placeBuyOrder(Order order) throws IOException;
 
@@ -82,7 +88,27 @@ public abstract class Exchange {
 
     public abstract String getName();
 
-//    public abstract String getName();
+    abstract void updateWalletCache();
+
+    abstract void updateDepthCache();
+
+    public Future<String> placeSellOrderAsync(final Order order) {
+        return orderPlacerPool.submit(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                return placeSellOrder(order);
+            }
+        });
+    }
+
+    public Future<String> placeBuyOrderAsync(final Order order) {
+        return orderPlacerPool.submit(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                return placeBuyOrder(order);
+            }
+        });
+    }
 
     public void setMarket(MarketConst market) {
         String marketVal = mkts.get(market);
@@ -92,7 +118,61 @@ public abstract class Exchange {
         this.market = marketVal;
     }
 
-    //TODO: use java 7 and get rid of duplicate code in exception handling ya lazy bum
+    public void updateWallets(CountDownLatch latch) {
+        new Thread(new WalletUpdater(latch)).start();
+    }
+
+    public void updateDepth(CountDownLatch latch) {
+        new Thread(new DepthUpdater(latch)).start();
+    }
+
+    void forceUpdateWallets() {
+        CountDownLatch latch = new CountDownLatch(1);
+        new Thread(new WalletUpdater(latch)).start();
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void forceUpdateDepth() {
+        CountDownLatch latch = new CountDownLatch(1);
+        new Thread(new DepthUpdater(latch)).start();
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void clearDepthCache() {
+        depthCache = null;
+    }
+
+    public void clearWalletsCache() {
+        walletsCache = null;
+    }
+
+    //tries to get rid of outliers because sometimes old orders stick around but can't be bought/sold
+//    void cleanOrders(List<Order> orders) {
+//        boolean clean = false;
+//        while (!clean) {
+//            clean = true;
+//            for (int i = 0; i < 5 && i < orders.size() - 1; i++) {
+////                System.out.println("checking rate " + orders.get(i + 1).getRate() + " vs rate " + orders.get(i).getRate());
+//                double rateSpread = Math.abs(orders.get(i + 1).getRate() - orders.get(i).getRate());
+//                double percentChange = rateSpread / orders.get(i + 1).getRate();
+//                if (percentChange > 0.05) {
+//                    System.out.println("removing order: " + orders.get(i).toString() + " because change is " + percentChange * 100 + "%");
+//                    orders.remove(i);
+//                    clean = false;
+//                    break;
+//                }
+//            }
+//        }
+//    }
+
     Map executeRequest(HttpUriRequest request, String statusKey, Object equalsOnSuccess) throws IOException {
         CloseableHttpResponse resp = null;
 
@@ -112,41 +192,33 @@ public abstract class Exchange {
                 }
                 else {
                     System.err.println("bad request to " + getName() + ", response: " + respString);
+                    return null;
                 }
-
-            } catch(IllegalStateException ise) {
-                //retry request in 5 seconds if server responded with non-json
+            } catch(Exception exception) {
                 wentThrough = false;
                 numRetries++;
                 if (numRetries > NUM_RETRIES) {
                     System.err.println("request won't go through after " + NUM_RETRIES + " retries");
                     break;
                 }
-                System.err.println("request failed, retrying");
-                ise.printStackTrace();
+                long sleepTime = new Double(1000 * Math.pow(2, numRetries)).longValue();
+                String errorMsg;
+                if (exception instanceof NoHttpResponseException) {
+                    errorMsg = "no response from server.";
+                }
+                else if (exception instanceof JsonSyntaxException) {
+                    errorMsg = "response was not valid json.";
+                }
+                else {
+                    errorMsg = "unknown error.";
+                    exception.printStackTrace();
+                }
+                System.err.println(errorMsg + " retrying in " + sleepTime);
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
                     System.err.println("too much coffee");
                 }
-            } catch(IOException ioe) {
-                //retry request if something else went wrong with request
-                wentThrough = false;
-                numRetries++;
-                if (numRetries > NUM_RETRIES) {
-                    System.err.println("request won't go through after " + NUM_RETRIES + " retries");
-                    break;
-                }
-                System.err.println("request failed, retrying");
-                ioe.printStackTrace();
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    System.err.println("too much coffee");
-                }
-            } catch(Exception e) {
-                System.err.println("something went wrong with the http request");
-                e.printStackTrace();
             } finally {
                 if (resp != null) {
                     resp.close();
@@ -157,21 +229,33 @@ public abstract class Exchange {
 
     }
 
-    void updateDepth(Map depth) {
-        depthCache = depth;
-        depthUpdated = System.currentTimeMillis();
+    class WalletUpdater implements Runnable {
+        CountDownLatch latch;
+
+        public WalletUpdater(CountDownLatch latch) {
+            this.latch = latch;
+        }
+
+        @Override
+        public void run() {
+            updateWalletCache();
+            latch.countDown();
+        }
     }
 
-    boolean depthIsFresh() {
-        return !(System.currentTimeMillis() - depthUpdated > 3000 || depthCache == null);
+    class DepthUpdater implements Runnable {
+        CountDownLatch latch;
+
+        public DepthUpdater(CountDownLatch latch) {
+            this.latch = latch;
+        }
+
+        @Override
+        public void run() {
+            updateDepthCache();
+            latch.countDown();
+        }
     }
 
-    void updateWallets(Map wallets) {
-        walletsCache = wallets;
-        walletsUpdated = System.currentTimeMillis();
-    }
 
-    boolean walletsIsFresh() {
-        return !(System.currentTimeMillis() - walletsUpdated > 3000 || walletsCache == null);
-    }
 }
